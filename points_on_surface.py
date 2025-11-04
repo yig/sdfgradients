@@ -109,6 +109,83 @@ def generate_test_mesh_data( path_to_mesh, num_points=500 ):
 
     return points, distances, gradients
 
+def save_to_gltf( points, surface_points, gradients, outbase ):
+    '''
+    Saves the original points, surface points, and gradients to a GLTF file for visualization.
+    Parameters:
+    points: (N, 3) array of original point coordinates
+        The input points in 3D space.
+    surface_points: (N, 3) array of surface point coordinates
+        The adjusted points on the surface.
+    gradients: (N, 3) array of gradient vectors
+        The gradient vectors at each point.
+    outbase: str
+        The base name for output files.
+    '''
+    # Plot the output using plot2gltf
+    try:
+        from plot2gltf import GLTFGeometryExporter
+    except ImportError:
+        print("plot2gltf not installed; skipping visualization.")
+        return
+
+    exporter = GLTFGeometryExporter()
+
+    # Big spheres for the surface points
+    exporter.add_spheres(surface_points, color=(0, 1, 0), radius = 0.01)  # Green points
+    # Small arrows for the gradients
+    exporter.add_normal_arrows(
+        surface_points, .05*gradients, color=(0, 1, 1),
+        shaft_radius=0.002, head_radius=0.004
+    )
+
+    # Small spheres for the original points
+    exporter.add_spheres(points, color=(1, 0, 0), radius = 0.005)  # Red points
+    # Small arrows for the original gradients
+    exporter.add_normal_arrows(
+        points, .05*gradients, color=(1, 1, 0),
+        shaft_radius=0.001, head_radius=0.002
+    )
+
+    # Add a very thin line from original points to surface points
+
+    exporter.add_lines(
+        np.concatenate([points, surface_points], axis=0),
+        list(zip( np.arange(len(points)), np.arange(len(points), len(points)*2) )),
+        color=(1, 1, 1)
+    )
+    
+    outpath = "surface_points " + outbase + ".gltf"
+    exporter.save( outpath )
+    print("Saved surface points:", outpath)
+
+def save_PSR_surface( points, normals, outbase, screening_weight = 10.0 ):
+    '''
+    Runs Poisson Surface Reconstruction to find the surface from the points and normals.
+    Parameters:
+    points: (N, 3) array of point coordinates
+        The input points in 3D space.
+    normals: (N, 3) array of normal vectors
+        The normal vectors at each point.
+    outbase: str
+        The base name for output files.
+    '''
+    try:
+        import gpytoolbox
+    except ImportError:
+        raise ImportError("gpytoolbox is required for PSR_surface function.")
+        return
+    
+    V,F = gpytoolbox.point_cloud_to_mesh( points, normals,
+        method='PSR',
+        psr_screening_weight=screening_weight,
+        psr_outer_boundary_type="Neumann",
+        verbose=True
+        )
+    outpath = outbase + " PSR_surface.obj"
+    gpytoolbox.write_mesh( outpath, V, F )
+    print( "Saved PSR surface:", outpath )
+
 if __name__ == "__main__":
     from pathlib import Path
     # Command line arguments to load a mesh or create an n-D sphere
@@ -145,37 +222,5 @@ if __name__ == "__main__":
         new_distances = np.linalg.norm(surface_points, axis=1) - 1.0
         print("Max distance from surface after adjustment:", np.max(np.abs(new_distances)))
 
-    # Plot the output using plot2gltf
-    try:
-        from plot2gltf import GLTFGeometryExporter
-        exporter = GLTFGeometryExporter()
-
-        # Big spheres for the surface points
-        exporter.add_spheres(surface_points, color=(0, 1, 0), radius = 0.01)  # Green points
-        # Small arrows for the gradients
-        exporter.add_normal_arrows(
-            surface_points, .05*gradients, color=(0, 1, 1),
-            shaft_radius=0.002, head_radius=0.004
-        )
-
-        # Small spheres for the original points
-        exporter.add_spheres(points, color=(1, 0, 0), radius = 0.005)  # Red points
-        # Small arrows for the original gradients
-        exporter.add_normal_arrows(
-            points, .05*gradients, color=(1, 1, 0),
-            shaft_radius=0.001, head_radius=0.002
-        )
-
-        # Add a very thin line from original points to surface points
-
-        exporter.add_lines(
-            np.concatenate([points, surface_points], axis=0),
-            list(zip( np.arange(len(points)), np.arange(len(points), len(points)*2) )),
-            color=(1, 1, 1)
-        )
-        
-        outpath = "surface_points " + outbase + ".gltf"
-        exporter.save( outpath )
-        print("Surface points saved:", outpath)
-    except ImportError:
-        print("plot2gltf not installed; skipping visualization.")
+    save_to_gltf( points, surface_points, gradients, outbase )
+    save_PSR_surface( points, gradients, outbase )
