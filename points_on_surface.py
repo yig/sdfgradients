@@ -1,6 +1,7 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
+#     "gpytoolbox",
 #     "numpy",
 #     "plot2gltf",
 #     "trimesh[easy]",
@@ -22,9 +23,9 @@ def yongs_algorithm( points, distances, gradients ):
     '''
     
     # Normalize the gradients to unit vectors
-    norm_gradients = gradients / np.linalg.norm(gradients, axis=1, keepdims=True)
+    # norm_gradients = gradients / np.linalg.norm(gradients, axis=1, keepdims=True)
     # Compute the new points by moving along the gradient direction
-    new_points = points - (distances[:, np.newaxis] * norm_gradients)
+    new_points = points - (distances[:, np.newaxis] * gradients)
     return new_points
 
 def generate_test_sphere( num_points=1000, radius=1.0, dimension=3 ):
@@ -81,16 +82,30 @@ def generate_test_mesh_data( path_to_mesh, num_points=500 ):
     mesh.vertices -= (min + max) / 2
     mesh.vertices /= np.max( max - min )
 
-    # Generate random points in 3D space
-    radius = 2*np.max( np.linalg.norm( mesh.vertices, axis=1 ) )
-    points = np.random.uniform(-radius, radius, (num_points, 3))
+    # # Generate random points in 3D space
+    # radius = 2*np.max( np.linalg.norm( mesh.vertices, axis=1 ) )
+    # points = np.random.uniform(-radius, radius, (num_points, 3))
 
+    # Generate equally spaced points around the mesh bounding box
+    bbox_min = np.min(mesh.vertices, axis=0) - 0.1
+    bbox_max = np.max(mesh.vertices, axis=0) + 0.1
+    grid_size = int(np.ceil(num_points ** (1/3)))
+    x = np.linspace(bbox_min[0], bbox_max[0], grid_size)
+    y = np.linspace(bbox_min[1], bbox_max[1], grid_size)
+    z = np.linspace(bbox_min[2], bbox_max[2], grid_size)
+    X, Y, Z = np.meshgrid(x, y, z)
+    points = np.vstack([X.ravel(), Y.ravel(), Z.ravel()]).T
+    if points.shape[0] > num_points:
+        points = points[np.random.choice(points.shape[0], num_points, replace=False)]
     # Find the closest points on the mesh surface
     query = trimesh.proximity.ProximityQuery(mesh)
     closest, distances, _ = query.on_surface( points )
     gradients = points - closest
     # Normalize gradients
-    gradients /= np.linalg.norm(gradients, axis=1, keepdims=True)
+    norm_temp = np.linalg.norm(gradients, axis=1, keepdims=True)
+    # Avoid division by zero
+    norm_temp[np.abs(norm_temp) <= 1e-8] = 1.0
+    gradients /= norm_temp
 
     return points, distances, gradients
 
