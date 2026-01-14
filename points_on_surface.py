@@ -100,23 +100,36 @@ def generate_test_mesh_data( path_to_mesh, num_points=500 ):
     # Find the closest points on the mesh surface
     query = trimesh.proximity.ProximityQuery(mesh)
     # Call `closest, distances, _ = query.on_surface( points )` in batches to avoid memory issues
-    batch_size = 1000
+    batch_size = 2000
     closest_list = []
-    distances_list = []
+    # distances_list = []
+    signed_distances_list = []
     for i in range(0, points.shape[0], batch_size):
         print(f"Processing points {i} to {np.minimum(i+batch_size, points.shape[0])} (batch {i//batch_size+1}/{(points.shape[0]+batch_size-1)//batch_size})...")
         batch_points = points[i:i+batch_size]
         closest, distances, _ = query.on_surface(batch_points)
+        signed_distances = query.signed_distance(batch_points)
+        ## Flip the sign, because Trimesh defines the inside as positive and the outside as negative.
+        ## Source: <https://trimesh.org/trimesh.proximity.html>
+        signed_distances = -signed_distances
+        print( "Max absolute difference between unsigned and signed distances in batch:", np.abs( np.abs(distances) - np.abs(signed_distances) ).max() )
         closest_list.append(closest)
-        distances_list.append(distances)
+        # distances_list.append(distances)
+        signed_distances_list.append(signed_distances)
     closest = np.vstack(closest_list)
-    distances = np.hstack(distances_list)
+    # distances = np.hstack(distances_list)
+    distances = np.hstack(signed_distances_list)
     gradients = points - closest
-    # Normalize gradients
-    norm_temp = np.linalg.norm(gradients, axis=1, keepdims=True)
-    # Avoid division by zero
+    ## Normalize gradients.
+    ## Gradients start as differences. Their norm are the distances.
+    ## Gradients always point away from the surface. The orientation should be flipped for inside points. Dividing by the signed distances takes care of that.
+    # norm_temp = np.linalg.norm(gradients, axis=1, keepdims=True)
+    # print( "Difference norm deviation from distances:", np.abs(norm_temp - distances.reshape(-1,1)).max() )
+    ## Avoid division by zero
+    norm_temp = distances.reshape(-1,1).copy()
     norm_temp[np.abs(norm_temp) <= 1e-8] = 1.0
     gradients /= norm_temp
+    print( "Points whose distances are <= 1e-8:", (np.abs(norm_temp) <= 1e-8).sum() )
 
     return points, distances, gradients
 
@@ -150,21 +163,23 @@ def save_to_gltf( points, surface_points, gradients, outbase ):
         shaft_radius=0.002, head_radius=0.004
     )
 
-    # Small spheres for the original points
-    exporter.add_spheres(points, color=(1, 0, 0), radius = 0.005)  # Red points
-    # Small arrows for the original gradients
-    exporter.add_normal_arrows(
-        points, .05*gradients, color=(1, 1, 0),
-        shaft_radius=0.001, head_radius=0.002
-    )
+    SAVE_ORIGINAL_POINTS = True
+    if SAVE_ORIGINAL_POINTS:
+        # Small spheres for the original points
+        exporter.add_spheres(points, color=(1, 0, 0), radius = 0.005)  # Red points
+        # Small arrows for the original gradients
+        exporter.add_normal_arrows(
+            points, .05*gradients, color=(1, 1, 0),
+            shaft_radius=0.001, head_radius=0.002
+        )
 
-    # Add a very thin line from original points to surface points
+        # Add a very thin line from original points to surface points
 
-    exporter.add_lines(
-        np.concatenate([points, surface_points], axis=0),
-        list(zip( np.arange(len(points)), np.arange(len(points), len(points)*2) )),
-        color=(1, 1, 1)
-    )
+        exporter.add_lines(
+            np.concatenate([points, surface_points], axis=0),
+            list(zip( np.arange(len(points)), np.arange(len(points), len(points)*2) )),
+            color=(1, 1, 1)
+        )
     
     outpath = outbase + " surface_points.gltf"
     exporter.save( outpath )
@@ -226,7 +241,7 @@ if __name__ == "__main__":
     
     # Apply Yong's algorithm to find points on the surface
     surface_points = yongs_algorithm(points, distances, gradients)
-    filtered_surface_points = surface_points[np.abs(distances) > .1]
+    # filtered_surface_points = surface_points[np.abs(distances) > .1]
     
     # Verify that the new points are on the sphere surface
     if not args.mesh:
