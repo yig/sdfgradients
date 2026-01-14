@@ -100,7 +100,7 @@ def generate_test_mesh_data( path_to_mesh, num_points=500 ):
     # Find the closest points on the mesh surface
     query = trimesh.proximity.ProximityQuery(mesh)
     # Call `closest, distances, _ = query.on_surface( points )` in batches to avoid memory issues
-    batch_size = 2000
+    batch_size = 1000
     closest_list = []
     # distances_list = []
     signed_distances_list = []
@@ -112,7 +112,9 @@ def generate_test_mesh_data( path_to_mesh, num_points=500 ):
         ## Flip the sign, because Trimesh defines the inside as positive and the outside as negative.
         ## Source: <https://trimesh.org/trimesh.proximity.html>
         signed_distances = -signed_distances
-        print( "Max absolute difference between unsigned and signed distances in batch:", np.abs( np.abs(distances) - np.abs(signed_distances) ).max() )
+        ## The following is always 0
+        max_abs_diff = np.abs( np.abs(distances) - np.abs(signed_distances) ).max()
+        if max_abs_diff > 0: print( "Max absolute difference between unsigned and signed distances in batch:", max_abs_diff )
         closest_list.append(closest)
         # distances_list.append(distances)
         signed_distances_list.append(signed_distances)
@@ -129,7 +131,7 @@ def generate_test_mesh_data( path_to_mesh, num_points=500 ):
     norm_temp = distances.reshape(-1,1).copy()
     norm_temp[np.abs(norm_temp) <= 1e-8] = 1.0
     gradients /= norm_temp
-    print( "Points whose distances are <= 1e-8:", (np.abs(norm_temp) <= 1e-8).sum() )
+    print( "Number of points with distance <= 1e-8:", (np.abs(norm_temp) <= 1e-8).sum() )
 
     return points, distances, gradients
 
