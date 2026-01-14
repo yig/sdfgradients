@@ -1,3 +1,9 @@
+# Install Dependencies
+
+```
+uv sync
+```
+
 # Test
 
 Test with a circle:
