@@ -12,5 +12,5 @@ uv run points_on_surface.py --sphere 3
 
 Test with a bunny:
 ```
-uv run points_on_surface.py --mesh bunny.obj
+uv run points_on_surface.py --mesh examples/bunny.obj --num-points 1000
 ```
