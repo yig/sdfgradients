@@ -8,5 +8,5 @@ dependencies = [
     "gpytoolbox>=0.3.7",
     "numpy>=2.2.6",
     "plot2gltf>=1.0.7",
-    "trimesh>=4.11.0",
+    "trimesh[easy]>=4.11.0",
 ]
