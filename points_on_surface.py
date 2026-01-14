@@ -104,7 +104,7 @@ def generate_test_mesh_data( path_to_mesh, num_points=500 ):
     closest_list = []
     distances_list = []
     for i in range(0, points.shape[0], batch_size):
-        print(f"Processing points {i} to {np.minimum(i+batch_size, points.shape[0])} (batch {i//batch_size}/{(points.shape[0]+batch_size-1)//batch_size})...")
+        print(f"Processing points {i} to {np.minimum(i+batch_size, points.shape[0])} (batch {i//batch_size+1}/{(points.shape[0]+batch_size-1)//batch_size})...")
         batch_points = points[i:i+batch_size]
         closest, distances, _ = query.on_surface(batch_points)
         closest_list.append(closest)
@@ -229,9 +229,11 @@ if __name__ == "__main__":
     filtered_surface_points = surface_points[np.abs(distances) > .1]
     
     # Verify that the new points are on the sphere surface
-    if args.sphere:
+    if not args.mesh:
         new_distances = np.linalg.norm(surface_points, axis=1) - 1.0
         print("Max distance from surface after adjustment:", np.max(np.abs(new_distances)))
 
+    print( "Saving glTF file" )
     save_to_gltf( points, surface_points, gradients, outbase )
+    print( "Running PSR surface reconstruction" )
     save_PSR_surface( surface_points, gradients, outbase )
