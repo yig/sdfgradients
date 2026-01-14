@@ -225,6 +225,8 @@ if __name__ == "__main__":
                       help="Number of points to generate or sample." )
     argparser.add_argument("--sphere", type=int, default=3, choices=[2,3],
                       help="Dimension of sphere to generate if no mesh is provided (2 or 3)." )
+    argparser.add_argument("--output", type=str, default=None,
+                      help="Base name for output files. If not provided, derived from mesh name or sphere." )
     args = argparser.parse_args()
 
     if args.mesh:
@@ -240,6 +242,9 @@ if __name__ == "__main__":
         if points.shape[1] == 2:
             points = np.hstack((points, np.zeros((points.shape[0], 1))))
             gradients = np.hstack((gradients, np.zeros((gradients.shape[0], 1))))
+    
+    if args.output:
+        outbase = args.output
     
     # Apply Yong's algorithm to find points on the surface
     surface_points = yongs_algorithm(points, distances, gradients)
