@@ -99,7 +99,18 @@ def generate_test_mesh_data( path_to_mesh, num_points=500 ):
         points = points[np.random.choice(points.shape[0], num_points, replace=False)]
     # Find the closest points on the mesh surface
     query = trimesh.proximity.ProximityQuery(mesh)
-    closest, distances, _ = query.on_surface( points )
+    # Call `closest, distances, _ = query.on_surface( points )` in batches to avoid memory issues
+    batch_size = 1000
+    closest_list = []
+    distances_list = []
+    for i in range(0, points.shape[0], batch_size):
+        print(f"Processing points {i} to {np.minimum(i+batch_size, points.shape[0])} (batch {i//batch_size}/{(points.shape[0]+batch_size-1)//batch_size})...")
+        batch_points = points[i:i+batch_size]
+        closest, distances, _ = query.on_surface(batch_points)
+        closest_list.append(closest)
+        distances_list.append(distances)
+    closest = np.vstack(closest_list)
+    distances = np.hstack(distances_list)
     gradients = points - closest
     # Normalize gradients
     norm_temp = np.linalg.norm(gradients, axis=1, keepdims=True)
@@ -155,7 +166,7 @@ def save_to_gltf( points, surface_points, gradients, outbase ):
         color=(1, 1, 1)
     )
     
-    outpath = "surface_points " + outbase + ".gltf"
+    outpath = outbase + " surface_points.gltf"
     exporter.save( outpath )
     print("Saved surface points:", outpath)
 
